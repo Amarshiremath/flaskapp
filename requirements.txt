@@ -3,3 +3,5 @@ pymongo
 pandas
 python-dotenv
 openpyxl
+gunicorn==20.1.0
+
