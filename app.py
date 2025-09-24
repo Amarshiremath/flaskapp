@@ -5,7 +5,7 @@ import hashlib
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file if it exists (useful for local testing)
+# Load environment variables (for local testing)
 load_dotenv()
 
 app = Flask(__name__)
@@ -25,7 +25,6 @@ files_collection = db['uploaded_files'] # To track uploaded files
 # -----------------------------
 # Flask routes
 # -----------------------------
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -53,15 +52,45 @@ def upload_data():
 
     data = df.to_dict(orient='records')
 
-    if data:
-        collection.insert_many(data)
+    # Transform flat data → nested schema
+    transformed_data = []
+    for row in data:
+        doc = {
+            "title": row.get("Topic"),
+            "subject": row.get("Subject"),
+            "gradeLevel": row.get("Class"),
+            "chapterNumber": row.get("Chapter", 1),
+            "curriculum": row.get("Curriculum_Type", "General"),
+            "description": row.get("Description"),
+            "topics": [
+                {
+                    "title": row.get("Topic"),
+                    "activities": [
+                        {
+                            "title": f"{row.get('Topic')} Activity",
+                            "description": row.get("Description"),
+                            "videos": {
+                                "vrLink": row.get("VR_URL"),
+                                "mobileLink": row.get("Video_URL"),
+                                "demoLink": row.get("WebGL_URL")
+                            },
+                            "duration": 20
+                        }
+                    ]
+                }
+            ]
+        }
+        transformed_data.append(doc)
+
+    if transformed_data:
+        collection.insert_many(transformed_data)
         files_collection.insert_one({"file_hash": file_hash})
         return render_template('index.html', message="✅ Data uploaded successfully!")
 
     return render_template('index.html', message="❌ The file is empty or invalid.")
 
 # -----------------------------
-# Run the app
+# Run the app (local)
 # -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
