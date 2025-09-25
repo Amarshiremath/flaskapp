@@ -28,24 +28,17 @@ def index():
     return render_template('index.html')
 
 
-def file_to_collection_name(filename):
-    """Generate a valid collection name from filename"""
-    name = os.path.splitext(secure_filename(filename))[0]
-    return name.replace(" ", "_").lower()
-
-
 @app.route('/upload-data', methods=['POST'])
 def upload_data():
     file = request.files.get('file')
+    collection_name = request.form.get('collection_name')  # ✅ Get from form input
+
     if not file:
         return render_template('index.html', message="❌ No file selected.")
+    if not collection_name:
+        return render_template('index.html', message="❌ Please enter a collection name.")
 
     filename = secure_filename(file.filename)
-    collection_name = file_to_collection_name(filename)
-
-    # Check if collection already exists
-    if collection_name in db.list_collection_names():
-        return render_template('index.html', message=f"⚠️ File '{filename}' already uploaded.")
 
     # Read Excel file
     try:
@@ -86,11 +79,11 @@ def upload_data():
         }
         transformed_data.append(doc)
 
-    # Insert into new collection
+    # Insert into the user-specified collection
     collection = db[collection_name]
     collection.insert_many(transformed_data)
 
-    return render_template('index.html', message=f"✅ File '{filename}' uploaded successfully!")
+    return render_template('index.html', message=f"✅ File '{filename}' uploaded successfully into collection '{collection_name}'!")
 
 
 # -----------------------------
