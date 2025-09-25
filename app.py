@@ -4,6 +4,7 @@ from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
+import re
 
 # Load environment variables
 load_dotenv()
@@ -20,6 +21,21 @@ if not MONGO_URI:
 client = MongoClient(MONGO_URI)
 db = client['education_db']  # Main database
 
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def sanitize_collection_name(name: str) -> str:
+    """Sanitize collection name to be MongoDB safe."""
+    # Lowercase, strip spaces
+    name = name.strip().lower()
+    # Replace any non-alphanumeric with underscores
+    name = re.sub(r'[^a-z0-9]+', '_', name)
+    # Avoid leading/trailing underscores
+    name = name.strip('_')
+    return name or "default_collection"
+
+
 # -----------------------------
 # Flask routes
 # -----------------------------
@@ -31,14 +47,20 @@ def index():
 @app.route('/upload-data', methods=['POST'])
 def upload_data():
     file = request.files.get('file')
-    collection_name = request.form.get('collection_name')  # ✅ Get from form input
+    collection_name = request.form.get("collection_name")
 
     if not file:
         return render_template('index.html', message="❌ No file selected.")
     if not collection_name:
         return render_template('index.html', message="❌ Please enter a collection name.")
 
-    filename = secure_filename(file.filename)
+    # Sanitize collection name
+    collection_name = sanitize_collection_name(collection_name)
+
+    # Prevent overwriting if the same collection name already exists
+    if collection_name in db.list_collection_names():
+        return render_template('index.html',
+                               message=f"⚠️ Collection '{collection_name}' already exists. Try another name.")
 
     # Read Excel file
     try:
@@ -79,11 +101,11 @@ def upload_data():
         }
         transformed_data.append(doc)
 
-    # Insert into the user-specified collection
+    # Insert into new collection
     collection = db[collection_name]
     collection.insert_many(transformed_data)
 
-    return render_template('index.html', message=f"✅ File '{filename}' uploaded successfully into collection '{collection_name}'!")
+    return render_template('index.html', message=f"✅ File uploaded successfully into '{collection_name}' collection!")
 
 
 # -----------------------------
